@@ -1,7 +1,7 @@
 GO      ?= go
 LDFLAGS := -s -w
 
-.PHONY: build release release-amd64 release-arm64 test clean
+.PHONY: build release release-amd64 release-arm64 test clean guard
 
 # 本机架构，开发用
 build:
@@ -21,6 +21,15 @@ release-arm64:
 
 test:
 	CGO_ENABLED=0 $(GO) test ./...
+
+# 推送前自检：确认私有配置、数据库、密钥没被 git 跟踪
+guard:
+	@if git ls-files | grep -qE '^private/|(^|/)center\.json$$|(^|/)id_ed25519(\.pub)?$$|\.db$$'; then \
+		echo "!! 检测到私有文件被跟踪，别推："; \
+		git ls-files | grep -E '^private/|(^|/)center\.json$$|(^|/)id_ed25519(\.pub)?$$|\.db$$'; \
+		exit 1; \
+	fi
+	@echo "OK: 没有私有文件被跟踪"
 
 clean:
 	rm -rf bin dist
