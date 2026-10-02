@@ -8,15 +8,17 @@
 # 用法二（直接从 GitHub/Gitee Release 安装，二进制来自发布附件）：
 #   curl -fsSL <Release下载目录>/install.sh | sudo bash
 #
-# 也可以显式指定来源：
+# 也可以显式指定来源与 HTTPS：
 #   curl -fsSL <任意>/install.sh | sudo bash -s -- --release-base <Release下载目录>
 #   bash install.sh --panel-base http://<面板地址>
+#   bash install.sh --https panel.example.com     # 用 Caddy 自动配 HTTPS
 #
 # 非交互用法（全部用环境变量指定，就没有提示了）：
 #   PANEL_BASE=http://x/release PANEL_PORT=8080 \
 #   PANEL_ADMIN_USER=admin PANEL_ADMIN_PASSWORD=xxxx \
 #   PANEL_HOST_NAME=机房A PANEL_HOST_ADDR=1.2.3.4 PANEL_HOST_PORT=29 \
 #   PANEL_HOST_USER=panel PANEL_LIBVIRT_URI=qemu:///system \
+#   PANEL_HTTPS_DOMAIN=panel.example.com \
 #   bash install.sh
 #
 set -euo pipefail
@@ -31,6 +33,7 @@ while [ $# -gt 0 ]; do
     --panel-base)   PANEL_BASE="${2:-}"; shift 2 ;;
     --release-base) RELEASE_BASE="${2:-}"; shift 2 ;;
     --version)      PANEL_VERSION="${2:-}"; shift 2 ;;
+    --https)        PANEL_HTTPS_DOMAIN="${2:-}"; shift 2 ;;
     -h|--help)      sed -n '2,20p' "$0" 2>/dev/null; exit 0 ;;
     *)              shift ;;
   esac
@@ -42,8 +45,14 @@ UNIT="${PANEL_UNIT:-/etc/systemd/system/panel-center.service}"
 
 # ---------- 小工具 ----------
 
+# 判断有没有可用的交互终端：先看标准输入，再试着打开 /dev/tty
 INTERACTIVE=0
-[ -r /dev/tty ] && INTERACTIVE=1
+if [ -t 0 ]; then
+  INTERACTIVE=1
+elif { exec 3<>/dev/tty; } 2>/dev/null; then
+  INTERACTIVE=1
+  exec 3>&- 3<&-
+fi
 
 say() { printf '%s\n' "$*"; }
 
@@ -100,6 +109,52 @@ download() {
 # 从 JSON 里抠一个字符串字段，不依赖 python
 json_get() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" <<<"$1" | head -1
+}
+
+# 用 Caddy 给面板配 HTTPS（自动申请并续期证书）。需要域名已解析到本机。
+setup_https() {
+  local domain="$1" port="$2"
+  say ">> 配置 HTTPS: $domain"
+  say "   请确认 $domain 已解析到本机，且 80/443 未被别的服务占用（如 frps / 其他 nginx）。"
+
+  if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -qE ':(80|443)\b'; then
+    say "   警告: 80 或 443 已被占用，Caddy 可能申请证书失败。"
+  fi
+
+  if ! command -v caddy >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+      say "   安装 Caddy ..."
+      apt-get install -y debian-keyring debian-archive-keyring apt-transport-https gnupg curl >/dev/null 2>&1 || true
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+        | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+        > /etc/apt/sources.list.d/caddy-stable.list 2>/dev/null || true
+      apt-get update -qq >/dev/null 2>&1 || true
+      apt-get install -y caddy >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if ! command -v caddy >/dev/null 2>&1; then
+    say "   Caddy 安装失败，HTTPS 未配置。可稍后手动用 Caddy/certbot 反代到 127.0.0.1:$port"
+    return 1
+  fi
+
+  mkdir -p /etc/caddy
+  cat > /etc/caddy/Caddyfile <<EOF
+$domain {
+	encode gzip
+	reverse_proxy 127.0.0.1:$port
+}
+EOF
+  systemctl enable caddy >/dev/null 2>&1 || true
+  systemctl restart caddy 2>/dev/null || systemctl start caddy 2>/dev/null || true
+  sleep 1
+  if systemctl is-active caddy >/dev/null 2>&1; then
+    say "   已启用，证书会自动申请。稍后访问 https://$domain"
+  else
+    say "   Caddy 没能启动，检查 /etc/caddy/Caddyfile 与 80/443 端口占用。"
+    return 1
+  fi
 }
 
 # ---------- 开始 ----------
@@ -181,6 +236,13 @@ if [ "$REGISTER_HOST" = 1 ]; then
   [ -n "${PANEL_LIBVIRT_URI:-}" ] || ask PANEL_LIBVIRT_URI "libvirt URI" "qemu:///system"
   if [ -z "$PANEL_HOST_ADDR" ]; then
     say "宿主机地址不能为空"; exit 1
+  fi
+fi
+
+# 4) HTTPS（可选）
+if [ -z "${PANEL_HTTPS_DOMAIN:-}" ] && [ "$INTERACTIVE" = 1 ]; then
+  if ask_yes "要配置 HTTPS 吗？（需要域名已解析到本机、80/443 空闲）" "n"; then
+    ask PANEL_HTTPS_DOMAIN "域名" ""
   fi
 fi
 
@@ -288,12 +350,22 @@ if [ "$REGISTER_HOST" = 1 ]; then
   fi
 fi
 
+# 10) 可选：配置 HTTPS
+if [ -n "${PANEL_HTTPS_DOMAIN:-}" ]; then
+  setup_https "$PANEL_HTTPS_DOMAIN" "$PANEL_PORT" || true
+fi
+
 PUBIP="$(curl -fsS --max-time 3 ifconfig.me 2>/dev/null || true)"
 [ -z "$PUBIP" ] && PUBIP="<服务器IP>"
 
 say ""
 say "================ 安装完成 ================"
-say "面板地址 : http://$PUBIP:$PANEL_PORT"
+if [ -n "${PANEL_HTTPS_DOMAIN:-}" ]; then
+  say "面板地址 : https://$PANEL_HTTPS_DOMAIN"
+  say "直连地址 : http://$PUBIP:$PANEL_PORT"
+else
+  say "面板地址 : http://$PUBIP:$PANEL_PORT"
+fi
 say "管理员   : $PANEL_ADMIN_USER"
 say ""
 if [ -n "$BIND_KEY" ]; then
