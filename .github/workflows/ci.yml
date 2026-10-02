@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: 构建
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: 测试
+        run: CGO_ENABLED=0 go test ./...
+
+      - name: 静态检查
+        run: go vet ./...
+
+      - name: 前端语法检查
+        run: node --check web/app.js

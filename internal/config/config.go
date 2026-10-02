@@ -16,13 +16,14 @@ type Config struct {
 	JWTSecret  string `json:"jwt_secret"`
 	TokenHours int    `json:"token_hours"`
 
-	PollSeconds   int    `json:"poll_seconds"`
-	Backend       string `json:"backend"` // fake / ssh
-	LibvirtURI    string `json:"libvirt_uri"`
-	SSHKeyPath    string `json:"ssh_key_path"`
-	AllowRegister bool   `json:"allow_register"`
-	InviteCode    string `json:"invite_code"`
-	EnableExec    bool   `json:"enable_exec"`
+	PollSeconds     int    `json:"poll_seconds"`
+	Backend         string `json:"backend"` // fake / ssh
+	LibvirtURI      string `json:"libvirt_uri"`
+	SSHKeyPath      string `json:"ssh_key_path"`
+	SSHHostKeyCheck string `json:"ssh_host_key_check"` // tofu（默认）或 insecure
+	AllowRegister   bool   `json:"allow_register"`
+	InviteCode      string `json:"invite_code"`
+	EnableExec      bool   `json:"enable_exec"`
 
 	AdminUser     string `json:"admin_user"`
 	AdminPassword string `json:"admin_password"`
@@ -30,16 +31,17 @@ type Config struct {
 
 func defaults() *Config {
 	return &Config{
-		Listen:        "0.0.0.0:8080",
-		BaseURL:       "http://127.0.0.1:8080",
-		DBPath:        "data/panel.db",
-		TokenHours:    12,
-		PollSeconds:   5,
-		Backend:       "fake",
-		LibvirtURI:    "qemu:///system",
-		AllowRegister: true,
-		EnableExec:    true,
-		AdminUser:     "admin",
+		Listen:          "0.0.0.0:8080",
+		BaseURL:         "http://127.0.0.1:8080",
+		DBPath:          "data/panel.db",
+		TokenHours:      12,
+		PollSeconds:     5,
+		Backend:         "fake",
+		LibvirtURI:      "qemu:///system",
+		SSHHostKeyCheck: "tofu",
+		AllowRegister:   true,
+		EnableExec:      true,
+		AdminUser:       "admin",
 	}
 }
 

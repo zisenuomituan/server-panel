@@ -106,6 +106,44 @@
       </div>
 
       <div class="panel">
+        <h3>用户</h3>
+        <div class="admin-form">
+          <input v-model.trim="newUser.username" placeholder="用户名">
+          <input v-model="newUser.password" type="password" placeholder="密码，至少 8 位">
+          <select v-model="newUser.role">
+            <option value="operator">操作员</option>
+            <option value="viewer">只读</option>
+            <option value="admin">管理员</option>
+          </select>
+          <input v-model.trim="newUser.email" placeholder="邮箱（可选）">
+          <button class="primary" @click="createUser">新建用户</button>
+        </div>
+        <table class="logs" style="margin-top:12px">
+          <thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>邮箱</th><th>创建时间</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="u in users" :key="u.id">
+              <td class="mono">{{ u.id }}</td>
+              <td>{{ u.username }}</td>
+              <td>
+                <select :value="u.role" @change="setRole(u, $event.target.value)">
+                  <option value="admin">管理员</option>
+                  <option value="operator">操作员</option>
+                  <option value="viewer">只读</option>
+                </select>
+              </td>
+              <td class="mono">{{ u.email || '-' }}</td>
+              <td class="mono">{{ date(u.created_at) }}</td>
+              <td class="actions">
+                <button @click="resetUserPassword(u.id)">重置密码</button>
+                <button class="danger" @click="deleteUser(u)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty" v-if="!users.length">还没有用户</div>
+      </div>
+
+      <div class="panel">
         <h3>密钥</h3>
         <div v-for="h in keyGroups" :key="h.host.id" style="margin-bottom:20px">
           <div class="hosthead" style="margin-bottom:8px">

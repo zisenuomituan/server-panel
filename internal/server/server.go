@@ -42,6 +42,10 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	}
 	if cfg.Backend == "ssh" {
 		s.pool = sshpool.New(cfg.SSHKeyPath)
+		// 默认 TOFU：第一次连接记住主机密钥，之后校验
+		if cfg.SSHHostKeyCheck != "insecure" {
+			s.pool.UseKnownHosts(st)
+		}
 	} else {
 		s.fake = libvirt.NewFake()
 	}
@@ -51,6 +55,8 @@ func New(cfg *config.Config, st *store.Store) *Server {
 func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+
+	r.Get("/healthz", s.handleHealth)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Post("/auth/register", s.handleRegister)
@@ -81,6 +87,12 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 				r.Post("/hosts/{id}/exec", s.handleHostExec)
 				r.Post("/keys/{id}/revoke", s.handleRevokeKey)
 				r.Get("/keys", s.handleAdminKeys)
+
+				r.Get("/users", s.handleAdminUsers)
+				r.Post("/users", s.handleAdminCreateUser)
+				r.Patch("/users/{id}", s.handleAdminUpdateUser)
+				r.Delete("/users/{id}", s.handleAdminDeleteUser)
+				r.Post("/users/{id}/password", s.handleAdminResetPassword)
 			})
 		})
 	})

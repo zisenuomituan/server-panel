@@ -1,0 +1,13 @@
+# 用法：
+#   1. cp config.example.json center.json，改成 backend: ssh 等
+#   2. 把连宿主机的 SSH 私钥放到 data/id_ed25519，并在 center.json 里指到 /opt/server-panel/data/id_ed25519
+#   3. docker compose up -d --build
+services:
+  panel:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/opt/server-panel/data
+      - ./center.json:/opt/server-panel/center.json:ro
+    restart: unless-stopped

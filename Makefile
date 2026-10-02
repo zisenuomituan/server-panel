@@ -1,6 +1,6 @@
 GO      ?= go
 VERSION := $(shell cat VERSION)
-LDFLAGS := -s -w -X main.cliVersion=$(VERSION)
+LDFLAGS := -s -w -X serverpanel/internal/version.Version=$(VERSION)
 
 .PHONY: build release release-amd64 release-arm64 test clean guard
 

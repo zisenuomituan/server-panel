@@ -1,0 +1,13 @@
+.git
+.github
+bin
+dist
+data
+private
+*.db
+*.db-wal
+*.db-shm
+*.log
+center.json
+id_ed25519
+id_ed25519.pub

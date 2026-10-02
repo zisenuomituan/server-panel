@@ -28,6 +28,8 @@ createApp({
       pwd: { old: '', new: '' },
       logs: [],
       keyGroups: [],
+      users: [],
+      newUser: { username: '', password: '', role: 'operator', email: '' },
       cmd: '',
       cmdBusy: false,
       termOut: '',
@@ -219,7 +221,10 @@ createApp({
 
     toggleView(v) {
       this.view = this.view === v ? 'main' : v;
-      if (this.view === 'admin') this.loadKeys();
+      if (this.view === 'admin') {
+        this.loadKeys();
+        this.loadUsers();
+      }
       if (this.view === 'logs') this.loadLogs();
       if (this.view === 'main' && this.selected) {
         this.$nextTick(() => this.drawCharts());
@@ -358,6 +363,63 @@ createApp({
       } catch (e) {
         this.notify(e.message, true);
       }
+    },
+
+    async loadUsers() {
+      try {
+        this.users = await this.api('/admin/users');
+      } catch (e) {
+        this.notify(e.message, true);
+      }
+    },
+
+    async createUser() {
+      try {
+        await this.api('/admin/users', { method: 'POST', body: JSON.stringify(this.newUser) });
+        this.newUser = { username: '', password: '', role: 'operator', email: '' };
+        this.notify('用户已创建');
+        this.loadUsers();
+      } catch (e) {
+        this.notify(e.message, true);
+      }
+    },
+
+    async setRole(u, role) {
+      if (role === u.role) return;
+      try {
+        await this.api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ role }) });
+        this.notify(`${u.username} 角色改为 ${this.roleName(role)}`);
+        this.loadUsers();
+      } catch (e) {
+        this.notify(e.message, true);
+        this.loadUsers();
+      }
+    },
+
+    async resetUserPassword(id) {
+      const pw = prompt('输入新密码（至少 8 位）');
+      if (!pw) return;
+      try {
+        await this.api(`/admin/users/${id}/password`, { method: 'POST', body: JSON.stringify({ password: pw }) });
+        this.notify('密码已重置');
+      } catch (e) {
+        this.notify(e.message, true);
+      }
+    },
+
+    async deleteUser(u) {
+      if (!confirm(`确定删除用户 ${u.username}？`)) return;
+      try {
+        await this.api(`/admin/users/${u.id}`, { method: 'DELETE' });
+        this.notify('已删除');
+        this.loadUsers();
+      } catch (e) {
+        this.notify(e.message, true);
+      }
+    },
+
+    roleName(r) {
+      return { admin: '管理员', operator: '操作员', viewer: '只读' }[r] || r;
     },
 
     async rotateServerKey(serverID) {
@@ -521,6 +583,7 @@ createApp({
       return {
         login: '登录', register: '注册', bind: '绑定', unbind: '解绑',
         create_host: '登记宿主机', delete_host: '删除宿主', rotate_key: '轮换密钥', revoke_key: '撤销密钥',
+        user_create: '新建用户', user_role: '改角色', user_delete: '删除用户', user_passwd: '重置密码',
         power: '电源', exec: '执行命令', host_exec: '宿主命令', change_password: '改密',
       }[a] || a;
     },

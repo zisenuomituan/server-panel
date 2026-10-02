@@ -16,7 +16,10 @@
 - **电源控制**：开机 / 关机 / 重启 / 强制关机，走 `virsh`，带二次确认和审计。
 - **网页命令行**：在详情页直接对虚拟机执行命令，返回真实输出和退出码。
 - **操作日志**：登录、注册、绑定、开关机、执行命令、密钥轮换等全部入库可查。
+- **用户管理**：管理员可在面板里增删用户、改角色、重置密码。
+- **SSH 主机密钥校验**：默认 TOFU，第一次连接记录指纹，之后校验，防中间人。
 - **一键安装**：面板自身通过 HTTP 分发安装脚本和二进制，一条 curl 即可部署新节点。
+- **运维**：`/healthz` 健康检查、`center backup/restore` 数据库备份恢复。
 
 ## 架构
 
@@ -70,7 +73,14 @@ PANEL_HOST_USER=panel PANEL_LIBVIRT_URI=qemu:///system \
 bash install.sh
 ```
 
-### 方式三：手动安装
+### 方式三：Docker
+
+```bash
+cp config.example.json center.json   # backend 改成 ssh，ssh_key_path 指到挂载进来的私钥
+docker compose up -d --build
+```
+
+### 方式四：手动安装
 
 ```bash
 make release                      # 生成 dist/linux-amd64/{center,vm-collect}
@@ -96,6 +106,8 @@ center key issue -host 1             # 宿主级密钥，可管整台宿主
 center key issue -server 3 -days 30  # 单机级密钥，只管这一台
 center key list
 center key revoke 2
+center backup /root/panel-$(date +%F).db
+center restore /root/panel-2026-10-02.db   # 恢复后重启服务
 center serve                         # 启动 Web 面板（不加子命令也是这个）
 ```
 

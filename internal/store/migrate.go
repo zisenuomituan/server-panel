@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_server_ts ON metrics(server_id, ts);
 
+CREATE TABLE IF NOT EXISTS ssh_host_keys (
+	host     TEXT PRIMARY KEY,
+	key      TEXT NOT NULL,
+	added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
 	id        INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id   INTEGER NOT NULL DEFAULT 0,

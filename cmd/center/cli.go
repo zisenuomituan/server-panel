@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -16,12 +17,10 @@ import (
 	"serverpanel/internal/config"
 	"serverpanel/internal/model"
 	"serverpanel/internal/store"
+	"serverpanel/internal/version"
 )
 
-// cliVersion 会被 Makefile 通过 -ldflags 覆盖成 VERSION 文件里的值
-var cliVersion = "dev"
-
-var cliHelp = "server-panel " + cliVersion + `
+var cliHelp = "server-panel " + version.Version + `
 
 
 用法:
@@ -36,6 +35,8 @@ var cliHelp = "server-panel " + cliVersion + `
   center key issue (-host <id> | -server <id>) [选项]   生成绑定密钥
   center key list                        列出密钥
   center key revoke <id>                 撤销密钥
+  center backup [文件]                   备份数据库
+  center restore <文件>                  恢复数据库（恢复后重启服务）
   center version                         版本号
 
 选项:
@@ -53,6 +54,20 @@ func runCLI(configPath string, args []string) int {
 		fmt.Fprintln(os.Stderr, "读取配置失败:", err)
 		return 1
 	}
+
+	switch args[0] {
+	case "version":
+		fmt.Println("server-panel", version.Version)
+		return 0
+	case "help", "-h", "--help":
+		fmt.Print(cliHelp)
+		return 0
+	case "backup":
+		return cliBackup(cfg, args[1:])
+	case "restore":
+		return cliRestore(cfg, args[1:])
+	}
+
 	st, err := store.Open(cfg.DBPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "打开数据库失败:", err)
@@ -61,10 +76,6 @@ func runCLI(configPath string, args []string) int {
 	defer st.Close()
 
 	switch args[0] {
-	case "version":
-		fmt.Println("server-panel", cliVersion)
-	case "help", "-h", "--help":
-		fmt.Print(cliHelp)
 	case "user":
 		return cliUser(st, args[1:])
 	case "host":
@@ -75,7 +86,72 @@ func runCLI(configPath string, args []string) int {
 		fmt.Fprintf(os.Stderr, "未知命令: %s\n\n%s", args[0], cliHelp)
 		return 2
 	}
+}
+
+func cliBackup(cfg *config.Config, args []string) int {
+	path := ""
+	if len(args) > 0 {
+		path = args[0]
+	} else {
+		path = "panel-backup-" + time.Now().Format("20060102-150405") + ".db"
+	}
+	if _, err := os.Stat(path); err == nil {
+		fmt.Fprintln(os.Stderr, "目标文件已存在:", path)
+		return 1
+	}
+	st, err := store.Open(cfg.DBPath)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	if err := st.Backup(path); err != nil {
+		return fail(err)
+	}
+	fmt.Println("已备份到", path)
 	return 0
+}
+
+func cliRestore(cfg *config.Config, args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "用法: center restore <备份文件>")
+		return 2
+	}
+	src := args[0]
+	if _, err := os.Stat(src); err != nil {
+		return fail(fmt.Errorf("备份文件不存在: %s", src))
+	}
+	// 先把当前的库另存一份，防手滑
+	if _, err := os.Stat(cfg.DBPath); err == nil {
+		bak := cfg.DBPath + ".before-restore-" + time.Now().Format("20060102-150405")
+		if err := copyFile(cfg.DBPath, bak); err != nil {
+			return fail(err)
+		}
+		fmt.Println("当前数据库已另存为", bak)
+	}
+	if err := copyFile(src, cfg.DBPath); err != nil {
+		return fail(err)
+	}
+	_ = os.Remove(cfg.DBPath + "-wal")
+	_ = os.Remove(cfg.DBPath + "-shm")
+	fmt.Println("已恢复。请重启服务: systemctl restart panel-center")
+	return 0
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 // ---------- 账号 ----------

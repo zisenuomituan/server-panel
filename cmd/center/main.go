@@ -32,7 +32,7 @@ func main() {
 		case "serve":
 			runServe(configPath)
 			return
-		case "user", "host", "key", "version", "help", "-h", "--help":
+		case "user", "host", "key", "backup", "restore", "version", "help", "-h", "--help":
 			os.Exit(runCLI(configPath, args))
 		}
 	}

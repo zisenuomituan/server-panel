@@ -35,6 +35,12 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
+// Backup 用 SQLite 的 VACUUM INTO 导出一份一致的数据库副本。目标文件必须不存在。
+func (s *Store) Backup(path string) error {
+	_, err := s.db.Exec(`VACUUM INTO ?`, path)
+	return err
+}
+
 // ---------- users ----------
 
 func (s *Store) CountUsers() (int, error) {
@@ -95,6 +101,17 @@ func (s *Store) DeleteUser(id int64) error {
 		}
 	}
 	return tx.Commit()
+}
+
+func (s *Store) UpdateRole(userID int64, role string) error {
+	_, err := s.db.Exec(`UPDATE users SET role = ? WHERE id = ?`, role, userID)
+	return err
+}
+
+func (s *Store) CountAdmins() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = ?`, model.RoleAdmin).Scan(&n)
+	return n, err
 }
 
 func (s *Store) UpdatePassword(userID int64, hash string) error {
@@ -469,6 +486,27 @@ func (s *Store) History(serverID int64, limit int) ([]model.Metric, error) {
 func (s *Store) PruneMetrics(keep time.Duration) error {
 	cutoff := time.Now().Add(-keep)
 	_, err := s.db.Exec(`DELETE FROM metrics WHERE ts < ?`, cutoff)
+	return err
+}
+
+// ---------- SSH 主机密钥（TOFU） ----------
+
+// HostKey 返回已记录的某台主机的 SSH 主机密钥；ok=false 表示还没见过。
+func (s *Store) HostKey(host string) (key string, ok bool, err error) {
+	err = s.db.QueryRow(`SELECT key FROM ssh_host_keys WHERE host = ?`, host).Scan(&key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return key, true, nil
+}
+
+func (s *Store) SaveHostKey(host, key string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO ssh_host_keys (host, key) VALUES (?, ?)
+		ON CONFLICT(host) DO UPDATE SET key = excluded.key`, host, key)
 	return err
 }
 

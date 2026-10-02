@@ -4,8 +4,10 @@ package sshpool
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -13,9 +15,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// KnownHosts 记录已知的 SSH 主机密钥，用于第一次信任（TOFU）之后校验。
+type KnownHosts interface {
+	HostKey(host string) (key string, ok bool, err error)
+	SaveHostKey(host, key string) error
+}
+
 type Pool struct {
 	keyPath string
 	timeout time.Duration
+	known   KnownHosts
 
 	mu      sync.Mutex
 	clients map[string]*ssh.Client
@@ -27,6 +36,27 @@ func New(keyPath string) *Pool {
 		timeout: 10 * time.Second,
 		clients: make(map[string]*ssh.Client),
 	}
+}
+
+// UseKnownHosts 打开主机密钥校验；不调用则等同于信任所有主机。
+func (p *Pool) UseKnownHosts(kh KnownHosts) {
+	p.known = kh
+}
+
+// CheckTOFU 第一次见到某主机就记住它的密钥，之后必须一致，否则报错。
+func CheckTOFU(kh KnownHosts, hostname string, key ssh.PublicKey) error {
+	enc := key.Type() + " " + base64.StdEncoding.EncodeToString(key.Marshal())
+	saved, ok, err := kh.HostKey(hostname)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return kh.SaveHostKey(hostname, enc)
+	}
+	if saved != enc {
+		return fmt.Errorf("主机 %s 的 SSH 密钥和记录不一致，可能有中间人攻击", hostname)
+	}
+	return nil
 }
 
 func (p *Pool) signer() (ssh.AuthMethod, error) {
@@ -58,10 +88,17 @@ func (p *Pool) client(addr, user string) (*ssh.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	hostKeyCB := ssh.InsecureIgnoreHostKey()
+	if p.known != nil {
+		known := p.known
+		hostKeyCB = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return CheckTOFU(known, hostname, key)
+		}
+	}
 	cfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{auth},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCB,
 		Timeout:         p.timeout,
 	}
 	c, err = ssh.Dial("tcp", addr, cfg)
