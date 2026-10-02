@@ -141,4 +141,4 @@ web                 前端页面
 
 ## 许可证
 
-MIT，见 `LICENSE`。
+Apache License 2.0，见 `LICENSE`，版权与第三方组件见 `NOTICE` / `THIRD_PARTY.md`。
