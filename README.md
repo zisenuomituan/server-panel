@@ -46,9 +46,9 @@ KVM 宿主机信息，然后自动下载二进制、写配置、装 systemd 服�
 
 ```bash
 # GitHub
-curl -fsSL https://github.com/zisenuomituan/server-panel/releases/download/v0.2.2/install.sh | sudo bash
+curl -fsSL https://github.com/zisenuomituan/server-panel/releases/download/v0.2.3/install.sh | sudo bash
 # Gitee
-curl -fsSL https://gitee.com/xianyunb123/server-panel/releases/download/v0.2.2/install.sh | sudo bash
+curl -fsSL https://gitee.com/xianyunb123/server-panel/releases/download/v0.2.3/install.sh | sudo bash
 ```
 
 脚本会按当前架构自动下载对应的 `center` 和 `vm-collect`。
