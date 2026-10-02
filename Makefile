@@ -1,12 +1,13 @@
 GO      ?= go
-LDFLAGS := -s -w
+VERSION := $(shell cat VERSION)
+LDFLAGS := -s -w -X main.cliVersion=$(VERSION)
 
 .PHONY: build release release-amd64 release-arm64 test clean guard
 
 # 本机架构，开发用
 build:
-	CGO_ENABLED=0 $(GO) build -o bin/center ./cmd/center
-	CGO_ENABLED=0 $(GO) build -o bin/vm-collect ./cmd/vm-collect
+	CGO_ENABLED=0 $(GO) build -ldflags "$(LDFLAGS)" -o bin/center ./cmd/center
+	CGO_ENABLED=0 $(GO) build -ldflags "$(LDFLAGS)" -o bin/vm-collect ./cmd/vm-collect
 
 # 线上发布：两种架构各出一份，center 和 vm-collect 放一起
 release: release-amd64 release-arm64

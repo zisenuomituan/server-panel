@@ -61,6 +61,42 @@ func (s *Store) UserByName(name string) (*model.User, error) {
 	return scanUser(row)
 }
 
+func (s *Store) Users() ([]model.User, error) {
+	rows, err := s.db.Query(`SELECT id, username, email, password_hash, role, created_at FROM users ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) DeleteUser(id int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, q := range []string{
+		`DELETE FROM user_hosts WHERE user_id = ?`,
+		`DELETE FROM user_servers WHERE user_id = ?`,
+		`DELETE FROM users WHERE id = ?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) UpdatePassword(userID int64, hash string) error {
 	_, err := s.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, hash, userID)
 	return err
@@ -228,6 +264,16 @@ func (s *Store) KeysForHost(hostID int64) ([]model.BindKey, error) {
 
 func (s *Store) KeysForServer(serverID int64) ([]model.BindKey, error) {
 	rows, err := s.db.Query(`SELECT `+bindKeyCols+` FROM bind_keys WHERE server_id = ? ORDER BY id DESC`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectKeys(rows)
+}
+
+// AllKeys 返回全部密钥，供命令行查看。
+func (s *Store) AllKeys() ([]model.BindKey, error) {
+	rows, err := s.db.Query(`SELECT ` + bindKeyCols + ` FROM bind_keys ORDER BY id DESC`)
 	if err != nil {
 		return nil, err
 	}

@@ -81,6 +81,26 @@ scp dist/linux-amd64/* root@<服务器>:/root/
 
 然后浏览器打开 `http://<服务器>:8080` 注册第一个账号（即管理员）。
 
+## 命令行管理
+
+`center` 同时是命令行工具，可以直接在终端里管理，不必打开网页：
+
+```bash
+center version
+center user list
+center user add admin -role admin -password '改成你的密码'
+center user passwd admin
+center host add -name 机房A -host 1.2.3.4 -port 22 -user panel
+center host list
+center key issue -host 1             # 宿主级密钥，可管整台宿主
+center key issue -server 3 -days 30  # 单机级密钥，只管这一台
+center key list
+center key revoke 2
+center serve                         # 启动 Web 面板（不加子命令也是这个）
+```
+
+命令行和面板共用同一个数据库，终端里改完，刷新网页即可看到。
+
 ## 被管理的机器
 
 ### KVM 宿主机
@@ -152,6 +172,15 @@ internal/store      SQLite 存储
 scripts             安装脚本（会随二进制一起分发）
 web                 前端页面
 ```
+
+## 版本迭代
+
+改动都记在 [CHANGELOG.md](CHANGELOG.md)。发一个新版本：
+
+1. 修改 `VERSION` 文件；
+2. 在 `CHANGELOG.md` 写下这个版本的变化；
+3. `make release` 生成 `dist/` 下的 amd64 / arm64 二进制；
+4. 打 tag 并推送，然后把二进制和 `install.sh` 作为附件发到 GitHub / Gitee 的 Release。
 
 ## 许可证
 
