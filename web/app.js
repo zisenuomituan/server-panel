@@ -30,6 +30,8 @@ createApp({
       keyGroups: [],
       users: [],
       newUser: { username: '', password: '', role: 'operator', email: '' },
+      execEnabled: true,
+      settings: { enable_exec: true },
       cmd: '',
       cmdBusy: false,
       termOut: '',
@@ -133,7 +135,40 @@ createApp({
 
     afterLogin() {
       this.loadHosts();
+      this.loadConfig();
       this.connectWS();
+    },
+
+    async loadConfig() {
+      try {
+        const c = await this.api('/config');
+        this.execEnabled = !!c.enable_exec;
+        this.settings.enable_exec = this.execEnabled;
+      } catch {}
+    },
+
+    async loadSettings() {
+      try {
+        const s = await this.api('/admin/settings');
+        this.settings.enable_exec = !!s.enable_exec;
+        this.execEnabled = this.settings.enable_exec;
+      } catch (e) {
+        this.notify(e.message, true);
+      }
+    },
+
+    async saveSettings() {
+      try {
+        const s = await this.api('/admin/settings', {
+          method: 'POST',
+          body: JSON.stringify({ enable_exec: this.settings.enable_exec }),
+        });
+        this.execEnabled = !!s.enable_exec;
+        this.notify('设置已保存');
+      } catch (e) {
+        this.notify(e.message, true);
+        this.loadSettings();
+      }
     },
 
     // ---------- 数据 ----------
@@ -224,6 +259,7 @@ createApp({
       if (this.view === 'admin') {
         this.loadKeys();
         this.loadUsers();
+        this.loadSettings();
       }
       if (this.view === 'logs') this.loadLogs();
       if (this.view === 'main' && this.selected) {

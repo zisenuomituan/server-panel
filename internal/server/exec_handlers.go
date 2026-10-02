@@ -28,7 +28,7 @@ type execResp struct {
 // handleExec 在指定虚拟机上执行一条命令（走它的 Guest SSH 通道）。
 func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 	c := claimsOf(r)
-	if !s.cfg.EnableExec {
+	if !s.execEnabled.Load() {
 		writeErr(w, http.StatusForbidden, "命令功能已关闭")
 		return
 	}
@@ -89,7 +89,7 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 // handleHostExec 在宿主机上执行命令，只有管理员可用。
 func (s *Server) handleHostExec(w http.ResponseWriter, r *http.Request) {
 	c := claimsOf(r)
-	if !s.cfg.EnableExec {
+	if !s.execEnabled.Load() {
 		writeErr(w, http.StatusForbidden, "命令功能已关闭")
 		return
 	}

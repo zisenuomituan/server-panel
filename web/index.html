@@ -90,6 +90,15 @@
     <!-- 管理页 -->
     <div class="wrap" v-else-if="view==='admin'">
       <div class="panel">
+        <h3>功能开关</h3>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" v-model="settings.enable_exec" @change="saveSettings" style="width:auto">
+          启用网页命令行（在详情页对虚拟机执行命令）
+        </label>
+        <div class="hint">关闭后所有账号都无法在网页执行命令。</div>
+      </div>
+
+      <div class="panel">
         <h3>登记宿主机</h3>
         <div class="admin-form">
           <input v-model.trim="newHost.name" placeholder="名称，如 机房A">
@@ -282,7 +291,7 @@
         </div>
       </div>
 
-      <div class="panel" v-if="user.role !== 'viewer'">
+      <div class="panel" v-if="user.role !== 'viewer' && execEnabled">
         <h3>命令行</h3>
         <pre class="term" ref="term">{{ termOut || '在下面输入命令，回车执行。' }}</pre>
         <div class="term-input">

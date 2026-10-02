@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,9 @@ type Server struct {
 	// 登录防爆破
 	login *loginlimit.Limiter
 
+	// 网页命令行开关，可在管理页随时改
+	execEnabled atomic.Bool
+
 	// fake 后端在开发模式下全局共用一份
 	fake *libvirt.FakeBackend
 
@@ -44,6 +48,12 @@ func New(cfg *config.Config, st *store.Store) *Server {
 		live:    map[int64]*LiveMetric{},
 		cpuPrev: map[string]cpuSample{},
 	}
+	// 网页命令行：默认取配置，若数据库里有运行时设置则以它为准
+	s.execEnabled.Store(cfg.EnableExec)
+	if v, ok, err := st.GetSetting("enable_exec"); err == nil && ok {
+		s.execEnabled.Store(v == "true" || v == "1")
+	}
+
 	if cfg.LoginProtect {
 		s.login = loginlimit.New(
 			cfg.LoginMaxFail,
@@ -77,6 +87,7 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
 			r.Get("/me", s.handleMe)
+			r.Get("/config", s.handleGetConfig)
 			r.Post("/me/password", s.handleChangePassword)
 			r.Post("/bind", s.handleBind)
 			r.Get("/hosts", s.handleHosts)
@@ -99,6 +110,9 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 				r.Post("/hosts/{id}/exec", s.handleHostExec)
 				r.Post("/keys/{id}/revoke", s.handleRevokeKey)
 				r.Get("/keys", s.handleAdminKeys)
+
+				r.Get("/settings", s.handleGetSettings)
+				r.Post("/settings", s.handleUpdateSettings)
 
 				r.Get("/users", s.handleAdminUsers)
 				r.Post("/users", s.handleAdminCreateUser)
@@ -130,6 +144,9 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 func writeErr(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
+
+// ExecEnabled 返回网页命令行是否启用。
+func (s *Server) ExecEnabled() bool { return s.execEnabled.Load() }
 
 // backendFor 返回操作某台宿主机的 libvirt 后端。
 func (s *Server) backendFor(h hostConn) libvirt.Backend {

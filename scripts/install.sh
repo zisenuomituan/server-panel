@@ -18,7 +18,7 @@
 #   PANEL_ADMIN_USER=admin PANEL_ADMIN_PASSWORD=xxxx \
 #   PANEL_HOST_NAME=机房A PANEL_HOST_ADDR=1.2.3.4 PANEL_HOST_PORT=29 \
 #   PANEL_HOST_USER=panel PANEL_LIBVIRT_URI=qemu:///system \
-#   PANEL_HTTPS_DOMAIN=panel.example.com \
+#   PANEL_ENABLE_EXEC=yes PANEL_HTTPS_DOMAIN=panel.example.com \
 #   bash install.sh
 #
 set -euo pipefail
@@ -239,7 +239,24 @@ if [ "$REGISTER_HOST" = 1 ]; then
   fi
 fi
 
-# 4) HTTPS（可选）
+# 4) 是否启用网页命令行
+if [ -z "${PANEL_ENABLE_EXEC:-}" ]; then
+  if [ "$INTERACTIVE" = 1 ]; then
+    if ask_yes "启用网页命令行（在网页里对虚拟机执行命令）？" "y"; then
+      PANEL_ENABLE_EXEC="yes"
+    else
+      PANEL_ENABLE_EXEC="no"
+    fi
+  else
+    PANEL_ENABLE_EXEC="yes"
+  fi
+fi
+case "$PANEL_ENABLE_EXEC" in
+  y|Y|yes|YES|true|1) EXEC_JSON=true ;;
+  *) EXEC_JSON=false ;;
+esac
+
+# 5) HTTPS（可选）
 if [ -z "${PANEL_HTTPS_DOMAIN:-}" ] && [ "$INTERACTIVE" = 1 ]; then
   if ask_yes "要配置 HTTPS 吗？（需要域名已解析到本机、80/443 空闲）" "n"; then
     ask PANEL_HTTPS_DOMAIN "域名" ""
@@ -291,7 +308,11 @@ if [ ! -f "$CONF" ]; then
   "ssh_key_path": "$INSTALL_DIR/id_ed25519",
   "allow_register": true,
   "invite_code": "",
-  "enable_exec": true,
+  "enable_exec": $EXEC_JSON,
+  "login_protect": true,
+  "login_max_fail": 5,
+  "login_window_minutes": 15,
+  "login_lock_minutes": 15,
   "admin_user": "$PANEL_ADMIN_USER",
   "admin_password": "$PANEL_ADMIN_PASSWORD"
 }
