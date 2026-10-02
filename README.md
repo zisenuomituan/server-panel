@@ -173,15 +173,6 @@ scripts             安装脚本（会随二进制一起分发）
 web                 前端页面
 ```
 
-## 版本迭代
-
-改动都记在 [CHANGELOG.md](CHANGELOG.md)。发一个新版本：
-
-1. 修改 `VERSION` 文件；
-2. 在 `CHANGELOG.md` 写下这个版本的变化；
-3. `make release` 生成 `dist/` 下的 amd64 / arm64 二进制；
-4. 打 tag 并推送，然后把二进制和 `install.sh` 作为附件发到 GitHub / Gitee 的 Release。
-
 ## 许可证
 
 Apache License 2.0，见 `LICENSE`，版权与第三方组件见 `NOTICE` / `THIRD_PARTY.md`。
