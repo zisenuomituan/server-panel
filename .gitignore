@@ -1,0 +1,19 @@
+# 构建产物
+/bin/
+/dist/
+
+# 运行时数据
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 本地配置与密钥，绝对不要提交
+center.json
+config.json
+id_ed25519
+id_ed25519.pub
+
+# 自用/私有覆盖层
+/private/

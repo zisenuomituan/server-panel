@@ -1,0 +1,15 @@
+{
+  "listen": "0.0.0.0:8080",
+  "base_url": "http://127.0.0.1:8080",
+  "db_path": "data/panel.db",
+  "token_hours": 12,
+  "poll_seconds": 5,
+  "backend": "fake",
+  "libvirt_uri": "qemu:///system",
+  "ssh_key_path": "/opt/server-panel/id_ed25519",
+  "allow_register": true,
+  "invite_code": "",
+  "enable_exec": true,
+  "admin_user": "admin",
+  "admin_password": ""
+}

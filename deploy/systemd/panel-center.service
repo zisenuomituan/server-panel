@@ -1,0 +1,16 @@
+[Unit]
+Description=Server Panel (center)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/server-panel
+ExecStart=/opt/server-panel/center -config /opt/server-panel/center.json
+Restart=on-failure
+RestartSec=3
+# 面板只做 SSH 客户端和 Web 服务，不需要 root，可自行改成专用用户
+# User=panel
+
+[Install]
+WantedBy=multi-user.target

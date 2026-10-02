@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服务器面板</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- 未登录 -->
+  <div class="auth" v-if="!token">
+    <div class="card">
+      <div class="brand">panel<b>://</b>kvm</div>
+
+      <div class="tabs">
+        <button :class="{on: tab==='login'}" @click="tab='login'">登录</button>
+        <button :class="{on: tab==='register'}" @click="tab='register'">注册</button>
+      </div>
+
+      <div v-if="tab==='login'">
+        <div class="field"><input v-model.trim="form.username" placeholder="用户名" @keyup.enter="login"></div>
+        <div class="field"><input v-model="form.password" type="password" placeholder="密码" @keyup.enter="login"></div>
+        <div class="field"><input v-model.trim="form.bindKey" placeholder="绑定密钥（可选）" @keyup.enter="login"></div>
+        <button class="primary btn-block" :disabled="busy" @click="login">进入面板</button>
+        <div class="hint">首次使用可在此粘贴宿主机密钥，登录后自动绑定。</div>
+      </div>
+
+      <div v-else>
+        <div class="field"><input v-model.trim="form.username" placeholder="用户名"></div>
+        <div class="field"><input v-model.trim="form.email" placeholder="邮箱（可选）"></div>
+        <div class="field"><input v-model="form.password" type="password" placeholder="密码，至少 8 位"></div>
+        <div class="field" v-if="inviteRequired"><input v-model.trim="form.invite" placeholder="邀请码"></div>
+        <button class="primary btn-block" :disabled="busy" @click="register">创建账号</button>
+      </div>
+
+      <div class="err">{{ error }}</div>
+    </div>
+  </div>
+
+  <!-- 已登录 -->
+  <div v-else>
+    <div class="top">
+      <div class="brand" style="cursor:pointer" @click="view='main'">panel<b>://</b>kvm</div>
+      <div class="bind-form">
+        <input v-model.trim="bindInput" placeholder="输入绑定密钥" @keyup.enter="bind">
+        <button @click="bind">绑定</button>
+      </div>
+      <div class="top-right">
+        <span class="who"><b>{{ user.username }}</b> · {{ roleText }}</span>
+        <button class="ghost" v-if="user.role==='admin'" :class="{on: view==='admin'}" @click="toggleView('admin')">管理</button>
+        <button class="ghost" :class="{on: view==='logs'}" @click="toggleView('logs')">日志</button>
+        <button class="ghost" @click="pwdOpen=!pwdOpen">改密</button>
+        <button class="ghost" @click="logout">退出</button>
+      </div>
+    </div>
+
+    <div class="panel pwd-pop" v-if="pwdOpen">
+      <h3>修改密码</h3>
+      <div class="field"><input v-model="pwd.old" type="password" placeholder="原密码"></div>
+      <div class="field"><input v-model="pwd.new" type="password" placeholder="新密码，至少 8 位"></div>
+      <button class="primary btn-block" @click="changePassword">确认修改</button>
+    </div>
+
+    <!-- 日志 -->
+    <div class="wrap" v-if="view==='logs'">
+      <div class="panel">
+        <h3>操作日志</h3>
+        <table class="logs">
+          <thead>
+            <tr><th>时间</th><th>用户</th><th>操作</th><th>对象</th><th>详情</th><th>结果</th><th>IP</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="l in logs" :key="l.id">
+              <td class="mono">{{ dateTime(l.ts) }}</td>
+              <td>{{ l.username || '-' }}</td>
+              <td>{{ actionText(l.action) }}</td>
+              <td class="mono">{{ targetName(l) }}</td>
+              <td class="mono detail">{{ l.detail }}</td>
+              <td :class="{bad: isBad(l.result)}">{{ l.result }}</td>
+              <td class="mono">{{ l.ip }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty" v-if="!logs.length">还没有日志</div>
+      </div>
+    </div>
+
+    <!-- 管理页 -->
+    <div class="wrap" v-else-if="view==='admin'">
+      <div class="panel">
+        <h3>登记宿主机</h3>
+        <div class="admin-form">
+          <input v-model.trim="newHost.name" placeholder="名称，如 机房A">
+          <input v-model.trim="newHost.ssh_host" placeholder="frp 地址">
+          <input v-model.trim="newHost.ssh_port" placeholder="SSH 端口">
+          <input v-model.trim="newHost.ssh_user" placeholder="用户，默认 panel">
+          <input v-model.trim="newHost.libvirt_uri" placeholder="libvirt URI，默认 qemu:///system">
+          <button class="primary" @click="createHost">生成密钥</button>
+        </div>
+        <div class="keybox" v-if="newKey">
+          <div class="plain mono">{{ newKey }}</div>
+          <div class="note">这是唯一的明文展示，请复制保存。密钥 32 位，可被多个账号绑定。</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>密钥</h3>
+        <div v-for="h in keyGroups" :key="h.host.id" style="margin-bottom:20px">
+          <div class="hosthead" style="margin-bottom:8px">
+            <span class="name">{{ h.host.name }}</span>
+            <span class="addr mono">{{ h.host.ssh_host }}:{{ h.host.ssh_port }}</span>
+          </div>
+
+          <div class="hint" style="margin:0 0 6px">宿主级密钥 · 绑定后可管理该宿主下所有虚拟机</div>
+          <table class="logs" v-if="h.host_keys.length">
+            <thead><tr><th>前缀</th><th>状态</th><th>到期</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="k in h.host_keys" :key="k.id">
+                <td class="mono">{{ k.prefix }}…</td>
+                <td>{{ k.status==='active' ? '可用' : '已撤销' }}</td>
+                <td class="mono">{{ k.expires_at ? date(k.expires_at) : '长期' }}</td>
+                <td><button class="danger" v-if="k.status==='active'" @click="revokeKey(k.id)">撤销</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="hint" style="margin:4px 0 6px">暂无宿主级密钥</div>
+          <button style="margin-top:6px" @click="rotateKey(h.host.id)">轮换宿主密钥</button>
+          <button class="danger" style="margin-top:6px;margin-left:8px" @click="deleteHost(h.host.id)">删除宿主</button>
+
+          <div v-if="h.servers.length" style="margin-top:14px">
+            <div class="hint" style="margin:0 0 6px">单机密钥 · 绑定后只能管理那一台虚拟机</div>
+            <div v-for="sv in h.servers" :key="sv.id" style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px">
+              <div class="row1" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span class="sname">{{ sv.name }}</span>
+                <button style="margin-left:auto" @click="rotateServerKey(sv.id)">生成/轮换单机密钥</button>
+              </div>
+              <table class="logs" v-if="sv.keys.length">
+                <thead><tr><th>前缀</th><th>状态</th><th>到期</th><th></th></tr></thead>
+                <tbody>
+                  <tr v-for="k in sv.keys" :key="k.id">
+                    <td class="mono">{{ k.prefix }}…</td>
+                    <td>{{ k.status==='active' ? '可用' : '已撤销' }}</td>
+                    <td class="mono">{{ k.expires_at ? date(k.expires_at) : '长期' }}</td>
+                    <td><button class="danger" v-if="k.status==='active'" @click="revokeKey(k.id)">撤销</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else class="hint" style="margin:4px 0">暂无单机密钥</div>
+            </div>
+          </div>
+        </div>
+        <div class="empty" v-if="!keyGroups.length">还没有登记宿主机</div>
+      </div>
+    </div>
+
+    <!-- 详情 -->
+    <div class="wrap" v-else-if="selected">
+      <button class="back" @click="closeServer">← 返回列表</button>
+      <div class="detail-head">
+        <h1>{{ selected.server.name }}</h1>
+        <span class="badge" :class="badgeClass(liveOf(selected.server.id))">{{ stateText(liveOf(selected.server.id)) }}</span>
+        <span class="addr mono" style="color:var(--dim);font-size:12px">{{ selected.host.name }} / {{ selected.server.domain_name }}</span>
+      </div>
+
+      <div class="panel">
+        <h3>实时</h3>
+        <div class="metric">
+          <div class="lbl"><span>CPU</span><b>{{ pct(liveOf(selected.server.id).cpu) }}%</b></div>
+          <div class="bar" :class="barClass(liveOf(selected.server.id).cpu)"><i :style="{width: clamp(liveOf(selected.server.id).cpu)+'%'}"></i></div>
+        </div>
+        <div class="metric">
+          <div class="lbl"><span>内存</span><b>{{ memText(liveOf(selected.server.id)) }}</b></div>
+          <div class="bar" :class="barClass(memPct(liveOf(selected.server.id)))"><i :style="{width: memPct(liveOf(selected.server.id))+'%'}"></i></div>
+        </div>
+        <div class="metric">
+          <div class="lbl"><span>硬盘</span><b>{{ diskText(liveOf(selected.server.id)) }}</b></div>
+          <div class="bar" :class="barClass(diskPct(liveOf(selected.server.id)))"><i :style="{width: diskPct(liveOf(selected.server.id))+'%'}"></i></div>
+        </div>
+        <div class="netrow">
+          <span>↓ <b class="mono">{{ rate(liveOf(selected.server.id).net_rx_rate) }}</b></span>
+          <span>↑ <b class="mono">{{ rate(liveOf(selected.server.id).net_tx_rate) }}</b></span>
+          <span>运行 <b class="mono">{{ uptime(liveOf(selected.server.id).uptime) }}</b></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>规格与系统</h3>
+        <div class="kv">
+          <div><div class="k">vCPU</div><div class="v mono">{{ selected.server.vcpu || '-' }}</div></div>
+          <div><div class="k">分配内存</div><div class="v mono">{{ selected.server.mem_mb ? selected.server.mem_mb+' MB' : '-' }}</div></div>
+          <div><div class="k">域名</div><div class="v mono">{{ selected.server.domain_name }}</div></div>
+          <div><div class="k">宿主机</div><div class="v">{{ selected.host.name }}</div></div>
+          <div><div class="k">Guest SSH</div><div class="v mono">{{ selected.server.ssh_port ? selected.host.ssh_host+':'+selected.server.ssh_port : '未配置' }}</div></div>
+          <div><div class="k">主机名</div><div class="v mono">{{ liveOf(selected.server.id).hostname || '-' }}</div></div>
+          <div><div class="k">系统</div><div class="v">{{ liveOf(selected.server.id).os || '-' }}</div></div>
+          <div><div class="k">内核</div><div class="v mono">{{ liveOf(selected.server.id).kernel || '-' }}</div></div>
+          <div><div class="k">架构</div><div class="v mono">{{ liveOf(selected.server.id).arch || '-' }}</div></div>
+          <div><div class="k">内网 IP</div><div class="v mono">{{ (liveOf(selected.server.id).ips || []).join(', ') || '-' }}</div></div>
+          <div><div class="k">最后更新</div><div class="v mono">{{ time(liveOf(selected.server.id).updated) }}</div></div>
+        </div>
+      </div>
+
+      <div class="panel" v-if="(liveOf(selected.server.id).disks || []).length">
+        <h3>磁盘挂载点</h3>
+        <table class="logs">
+          <thead><tr><th>挂载点</th><th>已用</th><th>总量</th><th>使用率</th></tr></thead>
+          <tbody>
+            <tr v-for="d in liveOf(selected.server.id).disks" :key="d.mount">
+              <td class="mono">{{ d.mount }}</td>
+              <td class="mono">{{ bytes(d.used) }}</td>
+              <td class="mono">{{ bytes(d.total) }}</td>
+              <td class="mono">{{ d.total ? ((d.used/d.total)*100).toFixed(1) : 0 }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3>登录用户</h3>
+        <div v-if="(liveOf(selected.server.id).users || []).length" class="actions">
+          <span class="badge" v-for="u in liveOf(selected.server.id).users" :key="u">{{ u }}</span>
+        </div>
+        <div v-else style="color:var(--dim);font-size:13px">没有检测到登录中的用户</div>
+      </div>
+
+      <div class="panel">
+        <h3>历史曲线</h3>
+        <div id="chart-res" class="chart"></div>
+      </div>
+      <div class="panel">
+        <h3>网络吞吐</h3>
+        <div id="chart-net" class="chart"></div>
+      </div>
+
+      <div class="panel">
+        <h3>电源控制</h3>
+        <div class="actions">
+          <button class="primary" :disabled="busy" @click="power('start')">开机</button>
+          <button :disabled="busy" @click="power('reboot')">重启</button>
+          <button :disabled="busy" @click="power('shutdown')">关机</button>
+          <button class="danger" :disabled="busy" @click="power('force-off')">强制关机</button>
+        </div>
+      </div>
+
+      <div class="panel" v-if="user.role !== 'viewer'">
+        <h3>命令行</h3>
+        <pre class="term" ref="term">{{ termOut || '在下面输入命令，回车执行。' }}</pre>
+        <div class="term-input">
+          <span class="prompt mono">$</span>
+          <input v-model="cmd" :disabled="cmdBusy" placeholder="输入命令，↑↓ 翻历史"
+                 @keyup.enter="runCmd" @keyup.up.prevent="histPrev" @keyup.down.prevent="histNext">
+          <button @click="runCmd" :disabled="cmdBusy">{{ cmdBusy ? '执行中' : '执行' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 列表 -->
+    <div class="wrap" v-else>
+      <div class="hostblock" v-for="h in hosts" :key="h.id">
+        <div class="hosthead">
+          <span class="name">{{ h.name }}</span>
+          <span class="dot" :class="h.status"></span>
+          <span class="addr mono">{{ h.ssh_host }}:{{ h.ssh_port }}</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="ghost" @click="unbind(h.id)">解绑</button>
+        </div>
+        <div class="grid">
+          <div class="card-sv" v-for="sv in h.servers" :key="sv.id" @click="openServer(sv.id)">
+            <div class="row1">
+              <span class="dot" :class="dotClass(metricFor(sv.id))"></span>
+              <span class="sname">{{ sv.name }}</span>
+              <span class="spec mono">{{ sv.vcpu }}c / {{ sv.mem_mb }}m</span>
+            </div>
+            <div class="metric">
+              <div class="lbl"><span>CPU</span><b>{{ pct(metricFor(sv.id).cpu) }}%</b></div>
+              <div class="bar" :class="barClass(metricFor(sv.id).cpu)"><i :style="{width: clamp(metricFor(sv.id).cpu)+'%'}"></i></div>
+            </div>
+            <div class="metric">
+              <div class="lbl"><span>内存</span><b>{{ memText(metricFor(sv.id)) }}</b></div>
+              <div class="bar" :class="barClass(memPct(metricFor(sv.id)))"><i :style="{width: memPct(metricFor(sv.id))+'%'}"></i></div>
+            </div>
+            <div class="netrow">
+              <span>↓ <b class="mono">{{ rate(metricFor(sv.id).net_rx_rate) }}</b></span>
+              <span>↑ <b class="mono">{{ rate(metricFor(sv.id).net_tx_rate) }}</b></span>
+              <span class="mono" style="margin-left:auto">{{ uptime(metricFor(sv.id).uptime) }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="empty" v-if="!h.servers.length">这台宿主机下还没有虚拟机</div>
+      </div>
+
+      <div class="empty" v-if="!hosts.length">
+        还没有绑定宿主机，在右上角输入密钥即可绑定。
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" :class="{err: toastErr}" v-if="toast">{{ toast }}</div>
+</div>
+
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/echarts.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
