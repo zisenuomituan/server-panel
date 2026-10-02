@@ -2,8 +2,15 @@
 #
 # 服务器面板一键安装（交互式）。
 #
-# 最简用法（面板已经跑在一台机器上，用它的地址来装新面板）：
+# 用法一（从已有面板分发，二进制由面板提供）：
 #   curl -fsSL http://<面板地址>/install.sh | sudo bash
+#
+# 用法二（直接从 GitHub/Gitee Release 安装，二进制来自发布附件）：
+#   curl -fsSL <Release下载目录>/install.sh | sudo bash
+#
+# 也可以显式指定来源：
+#   curl -fsSL <任意>/install.sh | sudo bash -s -- --release-base <Release下载目录>
+#   bash install.sh --panel-base http://<面板地址>
 #
 # 非交互用法（全部用环境变量指定，就没有提示了）：
 #   PANEL_BASE=http://x/release PANEL_PORT=8080 \
@@ -14,8 +21,21 @@
 #
 set -euo pipefail
 
-# 被 center 通过 HTTP 分发时，这行会被替换成真实地址；本地运行请自己设 PANEL_BASE
+# 这两个占位符会在对应分发方式下被替换成真实地址
 PANEL_BASE="${PANEL_BASE:-__PANEL_BASE__}"
+RELEASE_BASE="${PANEL_RELEASE_BASE:-__RELEASE_BASE__}"
+
+# 命令行参数优先
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --panel-base)   PANEL_BASE="${2:-}"; shift 2 ;;
+    --release-base) RELEASE_BASE="${2:-}"; shift 2 ;;
+    --version)      PANEL_VERSION="${2:-}"; shift 2 ;;
+    -h|--help)      sed -n '2,20p' "$0" 2>/dev/null; exit 0 ;;
+    *)              shift ;;
+  esac
+done
+
 INSTALL_DIR="${PANEL_INSTALL_DIR:-/opt/server-panel}"
 CONF="$INSTALL_DIR/center.json"
 UNIT="${PANEL_UNIT:-/etc/systemd/system/panel-center.service}"
@@ -93,14 +113,32 @@ cat <<'BANNER'
 
 BANNER
 
-if [ "$PANEL_BASE" = "__PANEL_BASE__" ]; then
-  say "没有拿到下载地址。请用这种方式运行："
-  say "  PANEL_BASE=http://面板地址 bash install.sh"
+# 判断下载来源：优先命令行/环境指定的面板地址，其次 Release 目录
+if [ "$PANEL_BASE" != "__PANEL_BASE__" ] && [ -n "$PANEL_BASE" ]; then
+  MODE="panel"
+elif [ "$RELEASE_BASE" != "__RELEASE_BASE__" ] && [ -n "$RELEASE_BASE" ]; then
+  MODE="release"
+else
+  say "没有拿到下载地址。可以这样运行："
+  say "  curl -fsSL <Release下载目录>/install.sh | sudo bash"
+  say "  或 bash install.sh --panel-base http://面板地址"
   exit 1
 fi
 
-ARCH="$(uname -m)"
-say "下载地址 : $PANEL_BASE"
+case "$(uname -m)" in
+  x86_64|amd64)  ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+  *) say "暂不支持的架构: $(uname -m)"; exit 1 ;;
+esac
+
+if [ "$MODE" = "panel" ]; then
+  say "安装来源 : 面板 $PANEL_BASE"
+else
+  # 版本号从 Release 下载目录名（.../v0.1.0）里取
+  VERSION="${PANEL_VERSION:-$(basename "$RELEASE_BASE")}"
+  VERSION="${VERSION#v}"
+  say "安装来源 : Release $RELEASE_BASE (v$VERSION)"
+fi
 say "系统架构 : $ARCH"
 say ""
 
@@ -151,12 +189,21 @@ say "开始安装 ..."
 
 # 4) 下载二进制
 mkdir -p "$INSTALL_DIR"
+
+if [ "$MODE" = "panel" ]; then
+  CENTER_URL="$PANEL_BASE/release/center"
+  COLLECT_URL="$PANEL_BASE/release/vm-collect"
+else
+  CENTER_URL="$RELEASE_BASE/center_${VERSION}_linux_${ARCH}"
+  COLLECT_URL="$RELEASE_BASE/vm-collect_${VERSION}_linux_${ARCH}"
+fi
+
 say ">> 下载 center"
-download "$PANEL_BASE/release/center" "$INSTALL_DIR/center.new"
+download "$CENTER_URL" "$INSTALL_DIR/center.new"
 chmod +x "$INSTALL_DIR/center.new"
 
 say ">> 下载 vm-collect"
-if download "$PANEL_BASE/release/vm-collect" "$INSTALL_DIR/vm-collect"; then
+if download "$COLLECT_URL" "$INSTALL_DIR/vm-collect"; then
   chmod +x "$INSTALL_DIR/vm-collect"
 else
   say "   警告: 没能取到 vm-collect，虚拟机内部指标会缺失（可稍后补）"

@@ -33,7 +33,23 @@
 
 ## 安装
 
-### 方式一：一键脚本（推荐）
+两种一键方式，脚本都会交互式询问管理员账号、监听端口，以及要登记的
+KVM 宿主机信息，然后自动下载二进制、写配置、装 systemd 服务，
+并把宿主机登记进面板，最后打印宿主机的绑定密钥。
+
+### 方式一：直接从 Release 安装（不需要已有面板）
+
+```bash
+# GitHub
+curl -fsSL https://github.com/zisenuomituan/server-panel/releases/download/v0.1.0/install.sh | sudo bash
+# Gitee
+curl -fsSL https://gitee.com/xianyunb123/server-panel/releases/download/v0.1.0/install.sh | sudo bash
+```
+
+脚本会按当前架构自动下载对应的 `center` 和 `vm-collect`。
+把上面的版本号换成新版本即可升级安装。
+
+### 方式二：从已有面板分发
 
 先有一台已经跑起来的面板，然后：
 
@@ -41,11 +57,9 @@
 curl -fsSL http://<面板地址>/install.sh | sudo bash
 ```
 
-脚本会交互式询问管理员账号、监听端口，以及要登记的 KVM 宿主机信息，
-然后自动下载二进制、写配置、装 systemd 服务，并把宿主机登记进面板，
-最后打印宿主机的绑定密钥。
+这种方式下二进制由现有面板的 `/release/` 提供。
 
-非交互方式：
+非交互方式（任意一种来源）：
 
 ```bash
 PANEL_BASE=http://<面板地址> \
@@ -56,7 +70,7 @@ PANEL_HOST_USER=panel PANEL_LIBVIRT_URI=qemu:///system \
 bash install.sh
 ```
 
-### 方式二：手动安装
+### 方式三：手动安装
 
 ```bash
 make release                      # 生成 dist/linux-amd64/{center,vm-collect}
