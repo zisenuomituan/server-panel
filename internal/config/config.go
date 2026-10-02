@@ -25,23 +25,33 @@ type Config struct {
 	InviteCode      string `json:"invite_code"`
 	EnableExec      bool   `json:"enable_exec"`
 
+	// 登录防爆破（只针对面板 Web 登录，不涉及 SSH）
+	LoginProtect       bool `json:"login_protect"`
+	LoginMaxFail       int  `json:"login_max_fail"`       // 窗口内允许的失败次数
+	LoginWindowMinutes int  `json:"login_window_minutes"` // 统计窗口（分钟）
+	LoginLockMinutes   int  `json:"login_lock_minutes"`   // 触发后锁定时间（分钟）
+
 	AdminUser     string `json:"admin_user"`
 	AdminPassword string `json:"admin_password"`
 }
 
 func defaults() *Config {
 	return &Config{
-		Listen:          "0.0.0.0:8080",
-		BaseURL:         "http://127.0.0.1:8080",
-		DBPath:          "data/panel.db",
-		TokenHours:      12,
-		PollSeconds:     5,
-		Backend:         "fake",
-		LibvirtURI:      "qemu:///system",
-		SSHHostKeyCheck: "tofu",
-		AllowRegister:   true,
-		EnableExec:      true,
-		AdminUser:       "admin",
+		Listen:             "0.0.0.0:8080",
+		BaseURL:            "http://127.0.0.1:8080",
+		DBPath:             "data/panel.db",
+		TokenHours:         12,
+		PollSeconds:        5,
+		Backend:            "fake",
+		LibvirtURI:         "qemu:///system",
+		SSHHostKeyCheck:    "tofu",
+		AllowRegister:      true,
+		EnableExec:         true,
+		LoginProtect:       true,
+		LoginMaxFail:       5,
+		LoginWindowMinutes: 15,
+		LoginLockMinutes:   15,
+		AdminUser:          "admin",
 	}
 }
 

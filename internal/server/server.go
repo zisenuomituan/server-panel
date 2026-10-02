@@ -12,6 +12,7 @@ import (
 	"serverpanel/internal/auth"
 	"serverpanel/internal/config"
 	"serverpanel/internal/libvirt"
+	"serverpanel/internal/loginlimit"
 	"serverpanel/internal/sshpool"
 	"serverpanel/internal/store"
 )
@@ -22,6 +23,9 @@ type Server struct {
 	tok  *auth.TokenIssuer
 	pool *sshpool.Pool
 	hub  *Hub
+
+	// 登录防爆破
+	login *loginlimit.Limiter
 
 	// fake 后端在开发模式下全局共用一份
 	fake *libvirt.FakeBackend
@@ -40,6 +44,14 @@ func New(cfg *config.Config, st *store.Store) *Server {
 		live:    map[int64]*LiveMetric{},
 		cpuPrev: map[string]cpuSample{},
 	}
+	if cfg.LoginProtect {
+		s.login = loginlimit.New(
+			cfg.LoginMaxFail,
+			time.Duration(cfg.LoginWindowMinutes)*time.Minute,
+			time.Duration(cfg.LoginLockMinutes)*time.Minute,
+		)
+	}
+
 	if cfg.Backend == "ssh" {
 		s.pool = sshpool.New(cfg.SSHKeyPath)
 		// 默认 TOFU：第一次连接记住主机密钥，之后校验

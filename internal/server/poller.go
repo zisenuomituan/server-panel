@@ -35,6 +35,9 @@ func (s *Server) RunPoller(ctx context.Context) {
 			s.pollOnce(ctx)
 		case <-prune.C:
 			_ = s.st.PruneMetrics(24 * time.Hour)
+			if s.login != nil {
+				s.login.Cleanup()
+			}
 		}
 	}
 }

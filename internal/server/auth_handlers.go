@@ -3,8 +3,10 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"serverpanel/internal/auth"
 	"serverpanel/internal/bindkey"
@@ -84,11 +86,35 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := strings.TrimSpace(req.Username)
+	ip := clientIP(r)
+	userKey := "u:" + name
+	ipKey := "ip:" + ip
+
+	// 登录防爆破：账号或来源 IP 任一被锁就拒绝
+	if s.login != nil {
+		for _, key := range []string{userKey, ipKey} {
+			if ok, wait := s.login.Allowed(key); !ok {
+				s.audit(r, 0, "login", 0, 0, name, "拒绝: 失败过多临时锁定")
+				writeErr(w, http.StatusTooManyRequests,
+					fmt.Sprintf("失败次数过多，请 %d 分钟后再试", ceilMinutes(wait)))
+				return
+			}
+		}
+	}
+
 	u, err := s.st.UserByName(name)
 	if err != nil || !auth.CheckPassword(req.Password, u.PasswordHash) {
+		if s.login != nil {
+			s.login.Fail(userKey)
+			s.login.Fail(ipKey)
+		}
 		s.audit(r, 0, "login", 0, 0, name, "失败: 用户名或密码不对")
 		writeErr(w, http.StatusUnauthorized, "用户名或密码不对")
 		return
+	}
+	if s.login != nil {
+		s.login.Success(userKey)
+		s.login.Success(ipKey)
 	}
 
 	bound := ""
@@ -213,6 +239,18 @@ func (s *Server) bindWithKey(userID int64, raw string) (string, error) {
 		name = " " + host.Name
 	}
 	return "已绑定宿主机" + name, nil
+}
+
+// ceilMinutes 向上取整到分钟，至少 1。
+func ceilMinutes(d time.Duration) int {
+	m := int(d.Minutes())
+	if d%time.Minute != 0 {
+		m++
+	}
+	if m < 1 {
+		m = 1
+	}
+	return m
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

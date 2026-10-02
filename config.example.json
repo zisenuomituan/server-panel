@@ -7,9 +7,14 @@
   "backend": "fake",
   "libvirt_uri": "qemu:///system",
   "ssh_key_path": "/opt/server-panel/id_ed25519",
+  "ssh_host_key_check": "tofu",
   "allow_register": true,
   "invite_code": "",
   "enable_exec": true,
+  "login_protect": true,
+  "login_max_fail": 5,
+  "login_window_minutes": 15,
+  "login_lock_minutes": 15,
   "admin_user": "admin",
   "admin_password": ""
 }
