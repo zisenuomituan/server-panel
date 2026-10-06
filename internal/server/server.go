@@ -148,8 +148,18 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 	r.Get("/release/vm-collect", s.handleReleaseCollector)
 
 	// 前端静态资源
-	r.Handle("/*", http.FileServer(webFS))
+	r.Handle("/*", staticHandler(webFS))
 	return r
+}
+
+// staticHandler 给前端资源加上"每次回源校验"。
+// 否则 CDN / 浏览器可能长时间缓存旧脚本，更新后页面还是一堆错。
+func staticHandler(fs http.FileSystem) http.Handler {
+	files := http.FileServer(fs)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		files.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

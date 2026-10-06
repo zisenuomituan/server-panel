@@ -71,7 +71,9 @@ createApp({
       localStorage.setItem('appTipClosed', '1');
     },
 
-    // ---------- 网络 ----------    async api(path, opts = {}) {
+    // ---------- 网络 ----------
+
+    async api(path, opts = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
       if (this.token) headers.Authorization = 'Bearer ' + this.token;
       const res = await fetch('/api' + path, Object.assign({}, opts, { headers }));
