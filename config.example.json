@@ -16,5 +16,12 @@
   "login_window_minutes": 15,
   "login_lock_minutes": 15,
   "admin_user": "admin",
-  "admin_password": ""
+  "admin_password": "",
+  "alert_enabled": true,
+  "alert_cpu": 90,
+  "alert_mem": 90,
+  "alert_disk": 90,
+  "alert_consecutive": 3,
+  "alert_on_stop": true,
+  "android_dir": "data/android"
 }

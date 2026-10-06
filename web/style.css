@@ -261,6 +261,49 @@ table.logs th { color: var(--dim); font-weight: 500; }
   margin: 0;
 }
 
+/* ---------- 下载 App ---------- */
+
+.app-dl { color: var(--green) !important; }
+
+.app-tip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0f1a14;
+  border: 1px solid #2c4d3a;
+  border-radius: 7px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text);
+}
+.app-tip span { flex: 1; }
+
+.app-tip-btn {
+  background: #2f6f4f;
+  border: 1px solid #3a8560;
+  border-radius: 5px;
+  padding: 6px 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.app-tip-btn:hover { background: #357c58; }
+
+.app-tip-x {
+  padding: 2px 8px;
+  color: var(--dim);
+  line-height: 1;
+}
+
+.app-dl-hint { text-align: center; }
+.app-dl-hint a { cursor: pointer; }
+
+@media (max-width: 720px) {
+  .app-tip { flex-wrap: wrap; }
+  .app-tip span { flex: 1 1 100%; }
+}
+
 @media (max-width: 720px) {
   .top {
     flex-wrap: wrap;

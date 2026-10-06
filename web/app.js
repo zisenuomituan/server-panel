@@ -44,6 +44,7 @@ createApp({
       toastErr: false,
       ws: null,
       charts: {},
+      appTipClosed: localStorage.getItem('appTipClosed') === '1',
     };
   },
 
@@ -60,8 +61,17 @@ createApp({
   },
 
   methods: {
-    // ---------- 网络 ----------
-    async api(path, opts = {}) {
+    // ---------- 下载 App ----------
+    downloadApp() {
+      window.location.href = '/android/download';
+    },
+
+    closeAppTip() {
+      this.appTipClosed = true;
+      localStorage.setItem('appTipClosed', '1');
+    },
+
+    // ---------- 网络 ----------    async api(path, opts = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
       if (this.token) headers.Authorization = 'Bearer ' + this.token;
       const res = await fetch('/api' + path, Object.assign({}, opts, { headers }));

@@ -91,3 +91,31 @@ type AuditLog struct {
 	IP       string    `json:"ip"`
 	TS       time.Time `json:"ts"`
 }
+
+// 告警类型。
+const (
+	AlertCPU         = "cpu"          // 虚拟机 CPU 持续超阈值
+	AlertMem         = "mem"          // 虚拟机内存持续超阈值
+	AlertDisk        = "disk"         // 虚拟机磁盘超阈值
+	AlertStopped     = "stopped"      // 虚拟机意外停止
+	AlertHostOffline = "host_offline" // 宿主机采集失败
+)
+
+// Alert 是一条告警。同一类型在同一目标上只保留一条未恢复的记录，
+// 持续命中时累加 Count 并刷新 UpdatedAt。
+type Alert struct {
+	ID         int64      `json:"id"`
+	Kind       string     `json:"kind"`
+	Level      string     `json:"level"` // warn / crit
+	HostID     int64      `json:"host_id"`
+	ServerID   int64      `json:"server_id"`
+	Target     string     `json:"target"`
+	Message    string     `json:"message"`
+	Value      float64    `json:"value"`
+	Status     string     `json:"status"` // active / resolved
+	Count      int        `json:"count"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ResolvedAt *time.Time `json:"resolved_at"`
+	AckAt      *time.Time `json:"ack_at"`
+}

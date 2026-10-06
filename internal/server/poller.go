@@ -35,6 +35,7 @@ func (s *Server) RunPoller(ctx context.Context) {
 			s.pollOnce(ctx)
 		case <-prune.C:
 			_ = s.st.PruneMetrics(24 * time.Hour)
+			_ = s.st.PruneAlerts(7 * 24 * time.Hour)
 			if s.login != nil {
 				s.login.Cleanup()
 			}
@@ -55,9 +56,11 @@ func (s *Server) pollOnce(ctx context.Context) {
 		domains, err := backend.List(ctx)
 		if err != nil {
 			_ = s.st.SetHostStatus(h.ID, "offline")
+			s.evalHostAlert(h, true)
 			continue
 		}
 		_ = s.st.SetHostStatus(h.ID, "online")
+		s.evalHostAlert(h, false)
 
 		for _, d := range domains {
 			sv := &model.Server{
@@ -102,6 +105,7 @@ func (s *Server) pollOnce(ctx context.Context) {
 
 			s.setLive(m)
 			s.hub.broadcast(s, m)
+			s.evalAlerts(h, m)
 		}
 	}
 }

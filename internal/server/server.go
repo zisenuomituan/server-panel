@@ -37,6 +37,11 @@ type Server struct {
 	mu      sync.RWMutex
 	live    map[int64]*LiveMetric // serverID -> 最新指标
 	cpuPrev map[string]cpuSample  // domain -> 上次 cpu.time
+
+	// 告警：连续超阈值的计数、上次看到的运行状态
+	alertMu     sync.Mutex
+	alertStreak map[int64]*alertStreak
+	alertState  map[int64]string
 }
 
 func New(cfg *config.Config, st *store.Store) *Server {
@@ -47,6 +52,9 @@ func New(cfg *config.Config, st *store.Store) *Server {
 		hub:     newHub(),
 		live:    map[int64]*LiveMetric{},
 		cpuPrev: map[string]cpuSample{},
+
+		alertStreak: map[int64]*alertStreak{},
+		alertState:  map[int64]string{},
 	}
 	// 网页命令行：默认取配置，若数据库里有运行时设置则以它为准
 	s.execEnabled.Store(cfg.EnableExec)
@@ -98,6 +106,9 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 			r.Post("/servers/{id}/power", s.handlePower)
 			r.Post("/servers/{id}/exec", s.handleExec)
 			r.Get("/audit", s.handleAudit)
+			r.Get("/alerts", s.handleAlerts)
+			r.Get("/alerts/summary", s.handleAlertSummary)
+			r.Post("/alerts/ack", s.handleAckAlerts)
 			r.Get("/ws", s.hub.serveWS(s))
 
 			r.Route("/admin", func(r chi.Router) {
@@ -122,6 +133,12 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 			})
 		})
 	})
+
+	// 安卓客户端分发（安装包放在 android_dir）
+	r.Get("/android/download", s.handleAndroidLatest)
+	r.Head("/android/download", s.handleAndroidLatest)
+	r.Get("/android/{name}", s.handleAndroidFile)
+	r.Head("/android/{name}", s.handleAndroidFile)
 
 	// 一键安装分发
 	r.Get("/install.sh", s.handleInstallScript)

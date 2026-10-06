@@ -100,6 +100,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 	ip        TEXT NOT NULL DEFAULT '',
 	ts        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS alerts (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	kind        TEXT NOT NULL,
+	level       TEXT NOT NULL DEFAULT 'warn',
+	host_id     INTEGER NOT NULL DEFAULT 0,
+	server_id   INTEGER NOT NULL DEFAULT 0,
+	target      TEXT NOT NULL DEFAULT '',
+	message     TEXT NOT NULL DEFAULT '',
+	value       REAL NOT NULL DEFAULT 0,
+	status      TEXT NOT NULL DEFAULT 'active',
+	count       INTEGER NOT NULL DEFAULT 1,
+	created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	resolved_at DATETIME,
+	ack_at      DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_open ON alerts(kind, host_id, server_id) WHERE status = 'active';
 `
 
 // 老库升级时补列，报"已存在"直接忽略。

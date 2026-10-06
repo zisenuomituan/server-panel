@@ -36,6 +36,10 @@
       </div>
 
       <div class="err">{{ error }}</div>
+
+      <div class="hint app-dl-hint">
+        推荐装安卓 App：<a @click="downloadApp">点此下载</a>，虚拟机异常会直接推送到手机。
+      </div>
     </div>
   </div>
 
@@ -49,6 +53,7 @@
       </div>
       <div class="top-right">
         <span class="who"><b>{{ user.username }}</b> · {{ roleText }}</span>
+        <button class="ghost app-dl" @click="downloadApp">下载 App</button>
         <button class="ghost" v-if="user.role==='admin'" :class="{on: view==='admin'}" @click="toggleView('admin')">管理</button>
         <button class="ghost" :class="{on: view==='logs'}" @click="toggleView('logs')">日志</button>
         <button class="ghost" @click="pwdOpen=!pwdOpen">改密</button>
@@ -305,6 +310,12 @@
 
     <!-- 列表 -->
     <div class="wrap" v-else>
+      <div class="app-tip" v-if="!appTipClosed">
+        <span>虚拟机宕机、CPU / 内存 / 磁盘超阈值，装上安卓 App 会直接推到手机。</span>
+        <a class="app-tip-btn" @click="downloadApp">下载安卓 App</a>
+        <button class="ghost app-tip-x" @click="closeAppTip" title="不再提示">×</button>
+      </div>
+
       <div class="hostblock" v-for="h in hosts" :key="h.id">
         <div class="hosthead">
           <span class="name">{{ h.name }}</span>

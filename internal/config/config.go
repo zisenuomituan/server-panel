@@ -33,6 +33,17 @@ type Config struct {
 
 	AdminUser     string `json:"admin_user"`
 	AdminPassword string `json:"admin_password"`
+
+	// 告警：由面板判定并入库，App 端拉取后本地提醒
+	AlertEnabled     bool `json:"alert_enabled"`
+	AlertCPU         int  `json:"alert_cpu"`         // CPU 阈值（百分比）
+	AlertMem         int  `json:"alert_mem"`         // 内存阈值（百分比）
+	AlertDisk        int  `json:"alert_disk"`        // 磁盘阈值（百分比）
+	AlertConsecutive int  `json:"alert_consecutive"` // 连续命中几次才告警
+	AlertOnStop      bool `json:"alert_on_stop"`     // 虚拟机意外停止是否告警
+
+	// 安卓客户端分发的目录（放 apk 和 latest.json）
+	AndroidDir string `json:"android_dir"`
 }
 
 func defaults() *Config {
@@ -52,6 +63,13 @@ func defaults() *Config {
 		LoginWindowMinutes: 15,
 		LoginLockMinutes:   15,
 		AdminUser:          "admin",
+		AlertEnabled:       true,
+		AlertCPU:           90,
+		AlertMem:           90,
+		AlertDisk:          90,
+		AlertConsecutive:   3,
+		AlertOnStop:        true,
+		AndroidDir:         "data/android",
 	}
 }
 
