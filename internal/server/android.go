@@ -44,6 +44,8 @@ func (s *Server) serveAndroid(w http.ResponseWriter, r *http.Request, name strin
 	w.Header().Set("Cache-Control", "no-store")
 	if strings.HasSuffix(name, ".apk") {
 		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
+		// 带上文件名，浏览器存下来才是 xxx.apk；否则存成无后缀文件会装不上
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	}
 	http.ServeFile(w, r, path)
 }
