@@ -2,7 +2,7 @@
   "listen": "0.0.0.0:8080",
   "base_url": "http://127.0.0.1:8080",
   "db_path": "data/panel.db",
-  "token_hours": 12,
+  "token_hours": 720,
   "poll_seconds": 5,
   "backend": "fake",
   "libvirt_uri": "qemu:///system",

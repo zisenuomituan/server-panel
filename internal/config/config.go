@@ -51,7 +51,7 @@ func defaults() *Config {
 		Listen:             "0.0.0.0:8080",
 		BaseURL:            "http://127.0.0.1:8080",
 		DBPath:             "data/panel.db",
-		TokenHours:         12,
+		TokenHours:         720,
 		PollSeconds:        5,
 		Backend:            "fake",
 		LibvirtURI:         "qemu:///system",

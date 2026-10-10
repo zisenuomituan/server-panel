@@ -80,8 +80,31 @@ createApp({
       const text = await res.text();
       let body = {};
       if (text) { try { body = JSON.parse(text); } catch { body = {}; } }
-      if (!res.ok) throw new Error(body.error || ('请求失败 ' + res.status));
+      if (!res.ok) {
+        // 令牌过期或被撤销：清掉本地会话并提示（长效登录靠 renewSession 续期）
+        if (res.status === 401 && this.token) {
+          this.logout();
+          this.notify('登录已过期，请重新登录');
+        }
+        throw new Error(body.error || ('请求失败 ' + res.status));
+      }
       return body;
+    },
+
+    // 长效登录：令牌还在有效期内时定期换一张新的，长时间挂着也不会被登出
+    async renewSession() {
+      if (!this.token) return;
+      const last = Number(localStorage.getItem('renewed_at') || 0);
+      if (Date.now() - last < 6 * 60 * 60 * 1000) return; // 6 小时内只续一次
+      try {
+        const r = await this.api('/auth/renew', { method: 'POST' });
+        if (r.token) {
+          this.setSession(r.token, r.user || this.user);
+          localStorage.setItem('renewed_at', String(Date.now()));
+        }
+      } catch {
+        // 续期失败不打扰用户：令牌真过期时下一次请求会走 401 分支
+      }
     },
 
     // ---------- 认证 ----------
@@ -129,6 +152,7 @@ createApp({
       this.user = user;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('renewed_at', String(Date.now()));
     },
 
     logout() {
@@ -146,6 +170,7 @@ createApp({
     },
 
     afterLogin() {
+      this.renewSession();
       this.loadHosts();
       this.loadConfig();
       this.connectWS();

@@ -260,3 +260,30 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	}
 	return true
 }
+
+// handleRenew 用仍然有效的令牌换一张新的，实现长效登录：
+// 只要在有效期内用过面板（网页或 App），登录状态就会自动续下去，不必反复输密码。
+// 只有令牌本身已经过期或被改过，才会走到重新登录。
+func (s *Server) handleRenew(w http.ResponseWriter, r *http.Request) {
+	c := claimsOf(r)
+	if c == nil {
+		writeErr(w, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	// 顺便确认用户还在（可能已被删除或改了角色），并带上最新角色签发
+	u, err := s.st.UserByID(c.UserID)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "用户不存在，请重新登录")
+		return
+	}
+	token, err := s.tok.Issue(u.ID, u.Username, u.Role)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "签发令牌失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"token":      token,
+		"expires_in": s.cfg.TokenHours * 3600,
+		"user":       u,
+	})
+}

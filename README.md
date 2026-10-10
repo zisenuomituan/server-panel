@@ -167,6 +167,7 @@ make test
 | `ssh_key_path` | 连接目标机用的私钥 |
 | `libvirt_uri` | 默认 libvirt 地址，登记宿主时可单独覆盖 |
 | `allow_register` / `invite_code` | 是否开放注册、是否要邀请码 |
+| `token_hours` | 登录令牌有效期（小时），默认 `720`（30 天）。客户端会在有效期内自动续期，所以只要这段时间用过面板就不必重新登录 |
 | `enable_exec` | 是否允许网页命令行 |
 | `admin_user` / `admin_password` | 首次启动时自动创建的管理员 |
 
@@ -177,6 +178,7 @@ make test
 - 密码用 argon2id；绑定密钥只存 SHA-256 哈希。
 - 生产环境请套 HTTPS 反向代理，并限制面板端口来源 IP。
 - 命令执行、开关机等敏感操作都有审计日志。
+- 长效登录：令牌在 `token_hours` 有效期内可通过 `POST /api/auth/renew` 换新，**过期后必须重新登录**（有效期就是「多久没碰面板才会被登出」）。
 
 ## 目录结构
 

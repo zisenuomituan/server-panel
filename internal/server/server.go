@@ -95,6 +95,7 @@ func (s *Server) Routes(webFS http.FileSystem) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
 			r.Get("/me", s.handleMe)
+			r.Post("/auth/renew", s.handleRenew)
 			r.Get("/config", s.handleGetConfig)
 			r.Post("/me/password", s.handleChangePassword)
 			r.Post("/bind", s.handleBind)
